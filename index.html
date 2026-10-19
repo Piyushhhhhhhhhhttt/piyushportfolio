@@ -1,0 +1,1745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>¥U5H — Visual & Interactive Designer</title>
+
+  <!-- Strict 3-Layer Typography: Instrument Serif (Display), IBM Plex Mono (Micro Technical), Reenie Beanie (Pencil Annotations) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&family=Instrument+Serif:ital@0;1&family=Reenie+Beanie&display=swap" rel="stylesheet">
+
+  <!-- GSAP for 60FPS Score Physics, Equalizer Level Bars & Transitions -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+
+  <style>
+    :root {
+      --paper: #F3F1EC;
+      --ink: #0E0E0E;
+      --muted: rgba(14, 14, 14, 0.42);
+      --staff: rgba(14, 14, 14, 0.13);
+      --sidebar-w: 38px;
+      --font-serif: 'Instrument Serif', Georgia, serif;
+      --font-mono: 'IBM Plex Mono', monospace;
+      --font-hand: 'Reenie Beanie', cursive;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background-color: var(--paper);
+      color: var(--ink);
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      line-height: 1.45;
+      letter-spacing: 0.02em;
+    }
+
+    button, a {
+      background: none;
+      border: none;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+      text-decoration: none;
+      outline: none;
+    }
+
+    /* ==========================================================================
+       1. BLACK OPENING LOADER ("LOADING THE PLAYLIST" 3X + 40 EQ BARS)
+       ========================================================================== */
+    #loader {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background-color: var(--ink);
+      color: var(--paper);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 44px 52px;
+      pointer-events: all;
+    }
+
+    .loader-stanzas-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+      z-index: 3;
+      max-width: 340px;
+    }
+
+    .loader-stanza {
+      display: flex;
+      flex-direction: column;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      line-height: 1.65;
+      letter-spacing: 0.02em;
+      color: var(--paper);
+    }
+
+    .loader-line {
+      min-height: 1.65em;
+      white-space: nowrap;
+    }
+
+    .loader-bottom-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      z-index: 3;
+    }
+
+    #eq-bars {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: flex-end;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .eq-bar {
+      flex: 1;
+      height: 0%;
+      background-color: var(--paper);
+      will-change: height;
+    }
+
+    /* ==========================================================================
+       2. TWO NARROW 38PX BLACK VERTICAL SIDEBARS
+       ========================================================================== */
+    .sidebar {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      width: var(--sidebar-w);
+      background-color: var(--ink);
+      color: var(--paper);
+      z-index: 600;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: 24px 0;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.03em;
+    }
+
+    .sidebar-left {
+      left: 0;
+      border-right: 1px solid rgba(243, 241, 236, 0.12);
+    }
+
+    .sidebar-right {
+      right: 0;
+      border-left: 1px solid rgba(243, 241, 236, 0.12);
+    }
+
+    .rot-ccw {
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .sidebar-switches {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 36px;
+    }
+
+    .sw-val {
+      opacity: 0.38;
+      transition: opacity 0.2s ease;
+    }
+
+    .sw-val.on {
+      opacity: 1;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    /* ==========================================================================
+       3. SEVEN HORIZONTAL STAFF LINES & PENCIL ANNOTATIONS LAYER
+       ========================================================================== */
+    #staff-lines-layer {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: var(--sidebar-w);
+      right: var(--sidebar-w);
+      z-index: 2;
+      display: grid;
+      grid-template-rows: repeat(8, 1fr);
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+
+    .staff-row-line {
+      border-bottom: 1px solid var(--staff);
+      width: 100%;
+      height: 100%;
+    }
+
+    .staff-row-line:last-child {
+      border-bottom: none;
+    }
+
+    .annotation {
+      font-family: var(--font-hand);
+      font-size: 23px;
+      line-height: 0.95;
+      color: var(--ink);
+      pointer-events: none;
+      position: absolute;
+      z-index: 55;
+      transition: opacity 0.4s ease;
+      font-weight: 400;
+    }
+
+    .annotation svg {
+      overflow: visible;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.15;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* Toggling Annotations: Off hides both the 7 staff lines and all hand-drawn notes */
+    body.annotations-hidden #staff-lines-layer,
+    body.annotations-hidden .annotation {
+      opacity: 0 !important;
+    }
+
+    /* ==========================================================================
+       4. VIEWPORT STAGE & CENTRAL PLAYHEAD
+       ========================================================================== */
+    .stage-view {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: var(--sidebar-w);
+      right: var(--sidebar-w);
+      z-index: 10;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.35s ease;
+    }
+
+    .stage-view.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    #central-playhead {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: 1px;
+      background-color: rgba(14, 14, 14, 0.32);
+      z-index: 25;
+      pointer-events: none;
+      transform: translateX(-50%);
+      transition: opacity 0.3s ease;
+    }
+
+    /* ==========================================================================
+       5. (01) NOTES — CONTINUOUS SCORE & CHORD PILE PHYSICS
+       ========================================================================== */
+    .score-scroll-prompt {
+      position: absolute;
+      top: 26px;
+      left: 36px;
+      z-index: 60;
+      font-size: 10.5px;
+      pointer-events: none;
+    }
+
+    #score-canvas {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      cursor: grab;
+    }
+
+    #score-canvas:active {
+      cursor: grabbing;
+    }
+
+    /* Giant Editorial Serif Title Centered Across the Playhead */
+    #giant-serif-overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+      text-align: center;
+      z-index: 32;
+      pointer-events: none;
+    }
+
+    #active-serif-title {
+      font-family: var(--font-serif);
+      font-weight: 400;
+      font-size: clamp(92px, 16.5vw, 275px);
+      line-height: 0.84;
+      letter-spacing: -0.04em;
+      text-transform: uppercase;
+      color: var(--ink);
+      white-space: nowrap;
+      display: inline-block;
+      will-change: transform, opacity;
+    }
+
+    .score-project-group {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 0;
+      height: 0;
+      will-change: transform;
+    }
+
+    .score-plate {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      overflow: hidden;
+      cursor: pointer;
+      will-change: transform;
+      background-color: #DCD9D0;
+    }
+
+    .score-plate img,
+    .score-plate svg {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      pointer-events: none;
+    }
+
+    /* Bottom Micro-Monospace Bar on (01) Notes */
+    .notes-bottom-bar {
+      position: absolute;
+      bottom: 22px;
+      left: 36px;
+      right: 36px;
+      z-index: 60;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 10.5px;
+    }
+
+    .notes-index-left {
+      display: flex;
+      align-items: baseline;
+      gap: 28px;
+    }
+
+    .notes-project-strip {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .strip-proj-link {
+      color: var(--muted);
+      transition: color 0.2s ease;
+    }
+
+    .strip-proj-link:hover,
+    .strip-proj-link.current {
+      color: var(--ink);
+    }
+
+    .strip-proj-link.current {
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .notes-action-right {
+      position: relative;
+      display: flex;
+      align-items: baseline;
+      gap: 20px;
+    }
+
+    .plain-underline-link {
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    /* ==========================================================================
+       6. (02) MELODY — 9-ROW MULTITRACK DAW EDITOR
+       ========================================================================== */
+    #view-melody {
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .melody-grid {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-rows: repeat(8, 1fr);
+    }
+
+    /* Vertical Multitrack Scrub Playhead */
+    #melody-playhead {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: 1px;
+      background-color: var(--ink);
+      z-index: 40;
+      pointer-events: none;
+    }
+
+    .melody-track-row {
+      position: relative;
+      display: grid;
+      grid-template-columns: 240px 1fr 64px;
+      align-items: center;
+      padding: 0 36px;
+      cursor: pointer;
+      overflow: hidden;
+    }
+
+    .melody-track-name {
+      font-family: var(--font-serif);
+      font-size: clamp(28px, 3.2vw, 46px);
+      line-height: 0.95;
+      letter-spacing: -0.02em;
+      text-transform: uppercase;
+      z-index: 5;
+    }
+
+    .melody-notes-ribbon {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 100%;
+      will-change: transform;
+    }
+
+    .melody-thumb {
+      height: 44px;
+      flex-shrink: 0;
+      overflow: hidden;
+      transition: transform 0.25s ease;
+    }
+
+    .melody-track-row:hover .melody-thumb {
+      transform: scaleY(1.18);
+    }
+
+    .melody-track-num {
+      text-align: right;
+      font-size: 10.5px;
+      color: var(--muted);
+    }
+
+    /* ==========================================================================
+       7. (03) OVERTURE (ABOUT) & (04) JAZZ (THOUGHTS)
+       ========================================================================== */
+    #view-overture,
+    #view-jazz {
+      overflow-y: auto;
+      padding: 64px 56px 120px;
+    }
+
+    .editorial-sheet {
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+
+    .sheet-section {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 32px;
+      padding: 52px 0;
+      border-bottom: 1px solid var(--staff);
+      position: relative;
+    }
+
+    .sheet-index {
+      font-size: 10.5px;
+      color: var(--muted);
+    }
+
+    .serif-statement {
+      font-family: var(--font-serif);
+      font-size: clamp(44px, 6.2vw, 94px);
+      line-height: 0.94;
+      letter-spacing: -0.03em;
+      text-transform: uppercase;
+      font-weight: 400;
+    }
+
+    .serif-statement em {
+      font-style: italic;
+      text-transform: none;
+    }
+
+    .mono-columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 44px;
+      margin-top: 36px;
+      max-width: 760px;
+      font-size: 10.5px;
+      line-height: 1.75;
+    }
+
+    .plain-spec-list {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px 36px;
+      margin-top: 32px;
+      max-width: 640px;
+      list-style: none;
+    }
+
+    .closing-melody-block {
+      padding: 88px 0 32px;
+    }
+
+    .closing-melody-block h2 {
+      font-family: var(--font-serif);
+      font-size: clamp(54px, 8.2vw, 132px);
+      line-height: 0.88;
+      letter-spacing: -0.035em;
+      text-transform: uppercase;
+      font-weight: 400;
+      margin-top: 16px;
+    }
+
+    /* ==========================================================================
+       8. INVERTED BLACK MENU OVERLAY (SCRIBBLED OUT WORDS + REAL MEANINGS)
+       ========================================================================== */
+    #menu-screen {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: var(--sidebar-w);
+      right: var(--sidebar-w);
+      background-color: var(--ink);
+      color: var(--paper);
+      z-index: 500;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 44px 56px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.32s ease;
+    }
+
+    #menu-screen.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .menu-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: auto 0;
+    }
+
+    .menu-row {
+      display: flex;
+      align-items: baseline;
+      gap: 22px;
+      cursor: pointer;
+      width: fit-content;
+    }
+
+    .menu-idx {
+      font-size: 10.5px;
+      color: rgba(243, 241, 236, 0.45);
+      width: 32px;
+    }
+
+    .menu-word-holder {
+      position: relative;
+      display: inline-block;
+    }
+
+    .menu-display-word {
+      font-family: var(--font-serif);
+      font-size: clamp(64px, 10.5vw, 152px);
+      line-height: 0.86;
+      letter-spacing: -0.035em;
+      text-transform: uppercase;
+      color: var(--paper);
+    }
+
+    /* Multi-stroke raw white pencil scribble crossing out each menu word */
+    .menu-strike-svg {
+      position: absolute;
+      left: -3%;
+      top: 36%;
+      width: 106%;
+      height: 34%;
+      pointer-events: none;
+      fill: none;
+      stroke: var(--paper);
+      stroke-width: 1.65;
+      stroke-linecap: round;
+    }
+
+    .menu-hand-translation {
+      font-family: var(--font-hand);
+      font-size: clamp(30px, 3.8vw, 52px);
+      color: var(--paper);
+      margin-left: 14px;
+      font-weight: 400;
+    }
+
+    .menu-bottom-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 10.5px;
+      color: rgba(243, 241, 236, 0.65);
+    }
+
+    /* ==========================================================================
+       9. PROJECT CASE STUDY SHEET (LONG VERTICAL EDITORIAL VIEW)
+       ========================================================================== */
+    #case-sheet {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: var(--sidebar-w);
+      right: var(--sidebar-w);
+      background-color: var(--paper);
+      color: var(--ink);
+      z-index: 400;
+      overflow-y: auto;
+      padding: 36px 56px 120px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.35s ease;
+    }
+
+    #case-sheet.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .case-header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--staff);
+    }
+
+    .case-giant-title {
+      font-family: var(--font-serif);
+      font-size: clamp(82px, 14.5vw, 230px);
+      line-height: 0.85;
+      letter-spacing: -0.04em;
+      text-transform: uppercase;
+      font-weight: 400;
+      margin: 44px 0 36px;
+    }
+
+    .case-specs-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+      padding: 18px 0;
+      border-top: 1px solid var(--staff);
+      border-bottom: 1px solid var(--staff);
+      margin-bottom: 56px;
+      font-size: 10.5px;
+    }
+
+    .case-plates-flow {
+      display: flex;
+      flex-direction: column;
+      gap: 72px;
+      max-width: 1120px;
+      margin: 0 auto;
+    }
+
+    .case-figure {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .case-figure-plate {
+      width: 100%;
+      overflow: hidden;
+      background: #E2DFD7;
+    }
+
+    .case-figure-plate svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    @media (max-width: 860px) {
+      .notes-project-strip { display: none; }
+      .sheet-section, .mono-columns, .case-specs-row, .case-figure {
+        grid-template-columns: 1fr;
+      }
+      #view-overture, #view-jazz, #case-sheet, #menu-screen {
+        padding: 32px 24px 96px;
+      }
+      .melody-track-row {
+        grid-template-columns: 140px 1fr 40px;
+        padding: 0 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==========================================================================
+       1. BLACK OPENING LOADER ("LOADING THE PLAYLIST" 3X + 40 WHITE EQ BARS)
+       ========================================================================== -->
+  <div id="loader">
+    <div class="loader-stanzas-stack">
+      <div class="loader-stanza" data-stanza="0">
+        <div class="loader-line"></div>
+        <div class="loader-line"></div>
+        <div class="loader-line"></div>
+        <div class="loader-line"></div>
+        <div class="loader-line"></div>
+      </div>
+      <div class="loader-stanza" data-stanza="1">
+        <div class="loader-line"></div>
+        <div class="loader-line"></div>
+        <div class="loader-line"></div>
+        <div class="loader-line"></div>
+        <div class="loader-line"></div>
+      </div>
+      <div class="loader-stanza" data-stanza="2">
+        <div class="loader-line"></div>
+        <div class="loader-line"></div>
+        <div class="loader-line"></div>
+        <div class="loader-line"></div>
+        <div class="loader-line"></div>
+      </div>
+    </div>
+
+    <div class="loader-bottom-row">
+      <span>▸</span>
+      <span id="loader-pct">0%</span>
+    </div>
+
+    <div id="eq-bars"></div>
+  </div>
+
+  <!-- ==========================================================================
+       2. TWO NARROW 38PX BLACK VERTICAL SIDEBARS
+       ========================================================================== -->
+  <aside class="sidebar sidebar-left">
+    <div class="rot-ccw" style="opacity: 0.75;">Visual &amp; Interactive Designer</div>
+    <button class="rot-ccw" onclick="openView('notes')">¥U5H</button>
+  </aside>
+
+  <aside class="sidebar sidebar-right">
+    <button class="rot-ccw" id="menu-btn">Menu</button>
+
+    <div class="sidebar-switches">
+      <button class="rot-ccw" id="sound-switch">
+        <span>Sound:</span>
+        <span id="snd-on" class="sw-val">On</span>
+        <span id="snd-off" class="sw-val on">Off</span>
+      </button>
+
+      <button class="rot-ccw" id="annot-switch">
+        <span>Annotations:</span>
+        <span id="ann-on" class="sw-val on">On</span>
+        <span id="ann-off" class="sw-val">Off</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ==========================================================================
+       3. SEVEN HORIZONTAL MUSICAL STAFF LINES (PART OF ANNOTATIONS LAYER)
+       ========================================================================== -->
+  <div id="staff-lines-layer">
+    <div class="staff-row-line"></div>
+    <div class="staff-row-line"></div>
+    <div class="staff-row-line"></div>
+    <div class="staff-row-line"></div>
+    <div class="staff-row-line"></div>
+    <div class="staff-row-line"></div>
+    <div class="staff-row-line"></div>
+    <div class="staff-row-line"></div>
+  </div>
+
+  <!-- Central Vertical Playhead Line -->
+  <div id="central-playhead"></div>
+
+  <!-- ==========================================================================
+       4. VIEW 01: "(01) NOTES" — INFINITE HORIZONTAL SCORE & CHORD PILE
+       ========================================================================== -->
+  <main id="view-notes" class="stage-view active">
+    <!-- Top Left "Scroll" with Hand-Drawn Pencil Circle -->
+    <div class="score-scroll-prompt">
+      <span>Scroll</span>
+      <div class="annotation" style="top: -9px; left: -14px; width: 76px; height: 34px;">
+        <svg viewBox="0 0 84 38">
+          <path d="M12,19 C10,7 72,5 75,18 C78,30 15,34 9,20 C6,13 24,8 41,9" />
+        </svg>
+      </div>
+    </div>
+
+    <!-- Giant Ultra-High-Contrast Editorial Serif Project Title -->
+    <div id="giant-serif-overlay">
+      <h1 id="active-serif-title">KALA &amp; KATHA</h1>
+    </div>
+
+    <!-- Interactive Horizontal Score Track -->
+    <div id="score-canvas">
+      <div id="score-projects-mount"></div>
+    </div>
+
+    <!-- Bottom Micro-Monospace Readout + Handwritten "More details" Arrow -->
+    <footer class="notes-bottom-bar">
+      <div class="notes-index-left">
+        <span id="bottom-active-num">01</span>
+        <div class="notes-project-strip" id="bottom-proj-strip"></div>
+      </div>
+
+      <div class="notes-action-right">
+        <!-- Handwritten pencil note & curved arrow pointing down to "View project" -->
+        <div class="annotation" style="bottom: 24px; right: 2px; width: 110px; text-align: center;">
+          <span>More details</span>
+          <svg width="26" height="30" viewBox="0 0 26 30" style="display: block; margin: 2px auto 0;">
+            <path d="M15,2 C11,11 14,19 13,26 M8,20 L13,27 L19,20" />
+          </svg>
+        </div>
+
+        <span id="bottom-active-name" style="color: var(--muted);">Kala &amp; Katha</span>
+        <button class="plain-underline-link" id="view-project-trigger">View project</button>
+      </div>
+    </footer>
+  </main>
+
+  <!-- ==========================================================================
+       5. VIEW 02: "(02) MELODY" — 8-ROW MULTITRACK DAW SCORE VIEW
+       ========================================================================== -->
+  <section id="view-melody" class="stage-view">
+    <div id="melody-playhead"></div>
+    <div class=" annotation" style="top: 18px; right: 48px;">
+      Move cursor or scroll to scrub all tracks
+    </div>
+    <div class="melody-grid" id="melody-tracks-mount"></div>
+  </section>
+
+  <!-- ==========================================================================
+       6. VIEW 03: "(03) OVERTURE" — ABOUT ¥U5H
+       ========================================================================== -->
+  <section id="view-overture" class="stage-view">
+    <div class="editorial-sheet">
+      <div class="sheet-section">
+        <div class="sheet-index">
+          (01)<br />Composing Visual Narratives
+          <div class="annotation" style="position: relative; margin-top: 18px;">
+            Scroll for more ↓
+          </div>
+        </div>
+        <div>
+          <h2 class="serif-statement">
+            Composing <em>visual narratives</em> in digital space. Blending brutalist minimalism, Swiss editorial grids, and kinetic motion.
+          </h2>
+          <div class="mono-columns">
+            <p>
+              Operating from Kathmandu under the moniker ¥U5H, I work across graphic design, visual identity systems, album packaging, and interactive web direction. Every layout is approached like a musical score—balancing stark structural silence with sudden visual chords.
+            </p>
+            <p>
+              Each image is a single note; each project is a complete composition. Whether designing tactile print monographs, multi-layered typographic posters, or 60fps GSAP web experiences, the goal remains raw clarity without decorative noise.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="sheet-section">
+        <div class="sheet-index">
+          (02)<br />Disciplines &amp; Craft
+        </div>
+        <div>
+          <h2 class="serif-statement">
+            Art Direction, <em>Typography</em> &amp; Interactive Systems
+          </h2>
+          <ul class="plain-spec-list">
+            <li>01 / Visual Identity &amp; Brand Architecture</li>
+            <li>02 / Editorial Monographs &amp; Print Systems</li>
+            <li>03 / Interactive Web &amp; GSAP Motion Direction</li>
+            <li>04 / Vinyl Packaging &amp; Key Visual Posters</li>
+            <li>05 / Multi-Layer Campaign Typography</li>
+            <li>06 / Design Systems &amp; Creative Direction</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="sheet-section">
+        <div class="sheet-index">
+          (03)<br />Selected Recognition
+        </div>
+        <div>
+          <div class="mono-columns" style="margin-top: 0;">
+            <div>
+              2026 — Awwwards Site of the Day Nominee (Kala &amp; Katha)<br />
+              2026 — Visual Identity &amp; Campaign Direction (Summit 8848)<br />
+              2025 — Experimental Typography Archive (Void Monolith)
+            </div>
+            <div>
+              Available for independent commissions, studio collaborations, and full brand/digital transformations worldwide.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="closing-melody-block">
+        <span style="color: var(--muted);">That's all</span>
+        <h2>Let's compose a beautiful melody together.</h2>
+        <div style="margin-top: 28px; display: flex; gap: 32px; align-items: baseline;">
+          <button class="plain-underline-link" onclick="copyContactEmail(this)">hello@yu5h.studio</button>
+          <span class="annotation" style="position: static;">← click to copy address</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       7. VIEW 04: "(04) JAZZ" — IMPROVISATIONS & DESIGN NOTES
+       ========================================================================== -->
+  <section id="view-jazz" class="stage-view">
+    <div class="editorial-sheet">
+      <div class="sheet-section" onclick="playChord([261.63, 329.63, 392.00])" style="cursor: pointer;">
+        <div class="sheet-index">2026.10 / Note 01</div>
+        <div>
+          <h2 class="serif-statement">Sampling &amp; Swiss Grids: <em>Why Every Layout Needs a Backbeat</em></h2>
+          <div class="mono-columns">
+            <p>
+              Chopped drum breaks from 1970s soul records and Josef Müller-Brockmann's mathematical poster grids share the exact same foundation: subdividing space into strict intervals so that a single off-grid element hits with maximum tension.
+            </p>
+            <p>
+              When we strip away rounded buttons, drop shadows, and decorative badges, the rhythm of raw proportion and negative space carries the entire emotional weight of the interface.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="sheet-section" onclick="playChord([293.66, 369.99, 440.00])" style="cursor: pointer;">
+        <div class="sheet-index">2026.08 / Note 02</div>
+        <div>
+          <h2 class="serif-statement">Chiaroscuro &amp; <em>High-Contrast</em> Display Serifs</h2>
+          <div class="mono-columns">
+            <p>
+              Pairing hair-thin serif strokes at 200px scale against 10px technical monospace creates an immediate architectural scale jump—eliminating the need for ornamental UI chrome.
+            </p>
+            <p>
+              The handwritten pencil layer acts as the human margin note on top of the printed score, reminding the viewer that behind the rigid grid is an individual designer's hand.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="closing-melody-block">
+        <span style="color: var(--muted);">End of notes</span>
+        <h2>Let's compose a beautiful melody together.</h2>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       8. FULLSCREEN INVERTED BLACK MENU OVERLAY
+       ========================================================================== -->
+  <nav id="menu-screen">
+    <div style="color: rgba(243,241,236,0.45);">Index</div>
+
+    <div class="menu-rows">
+      <div class="menu-row" onclick="selectMenuDestination('notes')" onmouseenter="playSingleNote(261.63)">
+        <span class="menu-idx">(01)</span>
+        <div class="menu-word-holder">
+          <span class="menu-display-word">Notes</span>
+          <svg class="menu-strike-svg" viewBox="0 0 320 40" preserveAspectRatio="none">
+            <path d="M4,22 C95,12 215,28 314,15 M12,27 C120,19 230,14 306,24" />
+          </svg>
+        </div>
+        <span class="menu-hand-translation">Selected</span>
+      </div>
+
+      <div class="menu-row" onclick="selectMenuDestination('melody')" onmouseenter="playSingleNote(293.66)">
+        <span class="menu-idx">(02)</span>
+        <div class="menu-word-holder">
+          <span class="menu-display-word">Melody</span>
+          <svg class="menu-strike-svg" viewBox="0 0 320 40" preserveAspectRatio="none">
+            <path d="M6,18 C110,29 210,11 312,22 M14,25 C130,15 240,26 304,17" />
+          </svg>
+        </div>
+        <span class="menu-hand-translation">All</span>
+      </div>
+
+      <div class="menu-row" onclick="selectMenuDestination('overture')" onmouseenter="playSingleNote(329.63)">
+        <span class="menu-idx">(03)</span>
+        <div class="menu-word-holder">
+          <span class="menu-display-word">Overture</span>
+          <svg class="menu-strike-svg" viewBox="0 0 320 40" preserveAspectRatio="none">
+            <path d="M3,24 C120,10 225,27 316,16 M10,17 C140,26 235,14 308,23" />
+          </svg>
+        </div>
+        <span class="menu-hand-translation">About</span>
+      </div>
+
+      <div class="menu-row" onclick="selectMenuDestination('jazz')" onmouseenter="playSingleNote(392.00)">
+        <span class="menu-idx">(04)</span>
+        <div class="menu-word-holder">
+          <span class="menu-display-word">Jazz</span>
+          <svg class="menu-strike-svg" viewBox="0 0 320 40" preserveAspectRatio="none">
+            <path d="M5,20 C100,11 205,28 312,18 M15,26 C125,18 220,12 302,22" />
+          </svg>
+        </div>
+        <span class="menu-hand-translation">Thoughts</span>
+      </div>
+    </div>
+
+    <div class="menu-bottom-meta">
+      <div>Get in touch: <span style="color: var(--paper); text-decoration: underline;">hello@yu5h.studio</span></div>
+      <div style="display: flex; gap: 24px;">
+        <span>Instagram</span>
+        <span>Are.na</span>
+        <span>Behance</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ==========================================================================
+       9. PROJECT CASE STUDY SHEET
+       ========================================================================== -->
+  <article id="case-sheet">
+    <div class="case-header-bar">
+      <span id="case-crumb">(01) / (09)</span>
+      <div style="display: flex; align-items: baseline; gap: 28px;">
+        <span class="annotation" style="position: static;">Scroll for more ↓</span>
+        <button class="plain-underline-link" onclick="closeCaseSheet()">Back to score</button>
+      </div>
+    </div>
+
+    <h1 class="case-giant-title" id="case-title">KALA &amp; KATHA</h1>
+
+    <div class="case-specs-row">
+      <div>
+        <div style="color: var(--muted);">Year</div>
+        <div id="case-year">2026</div>
+      </div>
+      <div>
+        <div style="color: var(--muted);">Role</div>
+        <div id="case-role">Visual &amp; Interactive Design</div>
+      </div>
+      <div>
+        <div style="color: var(--muted);">Deliverables</div>
+        <div id="case-services">Identity, Editorial, Motion</div>
+      </div>
+      <div>
+        <div style="color: var(--muted);">Client</div>
+        <div id="case-client">Kala &amp; Katha Collective</div>
+      </div>
+    </div>
+
+    <div class="sheet-section" style="border-top: none; padding-top: 0;">
+      <div class="sheet-index">
+        Overview
+        <div class="annotation" style="position: relative; margin-top: 12px;">Details ↘</div>
+      </div>
+      <div>
+        <p class="serif-statement" id="case-lead" style="font-size: clamp(34px, 4.5vw, 64px);"></p>
+      </div>
+    </div>
+
+    <div class="case-plates-flow" id="case-plates-mount"></div>
+
+    <div class="closing-melody-block">
+      <span style="color: var(--muted);">Next movement</span>
+      <h2>Let's compose a beautiful melody together.</h2>
+      <div style="margin-top: 24px;">
+        <button class="plain-underline-link" onclick="closeCaseSheet()">Return to (01) Notes</button>
+      </div>
+    </div>
+  </article>
+
+  <!-- ==========================================================================
+       10. CORE ENGINE: GRAPHIC PLATES, SCORE PHYSICS & SOUND SYNTHESIS
+       ========================================================================== -->
+  <script>
+    /* --------------------------------------------------------------------------
+       1. NINE PORTFOLIO PROJECTS TAILORED FOR ¥U5H
+       -------------------------------------------------------------------------- */
+    const PROJECTS = [
+      {
+        num: '01',
+        name: 'Kala & Katha',
+        year: '2026',
+        role: 'Lead Visual & Interactive Designer',
+        services: 'Identity System, Web Choreography, Monograph',
+        client: 'Kala & Katha Heritage Archive',
+        freq: 261.63,
+        lead: 'An experiential cultural archive and tactile print monograph translating Himalayan craft lineages into a stark Swiss editorial grid and 60fps scroll choreography.',
+        colors: ['#161616', '#9E2A2B', '#D9D4C7', '#2B2D42', '#C8B89E', '#3D405B']
+      },
+      {
+        num: '02',
+        name: 'Kansas Heist',
+        year: '2026',
+        role: 'Art Direction & Packaging',
+        services: 'Vinyl Anthology, Kinetic Type, Sleeve Print',
+        client: '¥U5H Instrumental Imprint',
+        freq: 293.66,
+        lead: 'Noir-inspired double-LP gatefold system, center labels, and typographic motion teasers built around 1950s crime cinema dialogue cuts and dusty boom-bap textures.',
+        colors: ['#111111', '#B91C1C', '#E7E4DD', '#27272A', '#7F1D1D', '#D4D0C8']
+      },
+      {
+        num: '03',
+        name: 'Void Monolith',
+        year: '2026',
+        role: 'Visual Identity & Editorial Direction',
+        services: 'Exhibition Posters, Custom Display Type, Book',
+        client: 'Eclipse Architecture Pavilion',
+        freq: 329.63,
+        lead: 'High-contrast chiaroscuro engraving and brutalist poster series inspired by dark manga monoliths and raw concrete architectural forms.',
+        colors: ['#0A0A0C', '#3F3F46', '#E4E2DD', '#18181B', '#71717A', '#D4D4D8']
+      },
+      {
+        num: '04',
+        name: 'Summit 8848',
+        year: '2026',
+        role: 'Campaign & Multi-Layer Visual Designer',
+        services: 'Key Visuals, Topographic Telemetry, Editorial',
+        client: 'High-Altitude Expedition',
+        freq: 349.23,
+        lead: 'Multi-layered typographic campaign pairing raw elevation telemetry, barometric data tables, and stark editorial photography across print and digital plates.',
+        colors: ['#0F172A', '#1E3A8A', '#E2E8F0', '#334155', '#475569', '#CBD5E1']
+      },
+      {
+        num: '05',
+        name: 'Higgsfield',
+        year: '2026',
+        role: 'Creative Director & Storyboard Designer',
+        services: 'Commercial Direction, Modular UI, Spec System',
+        client: 'Autonomous Search Lab',
+        freq: 392.00,
+        lead: 'Directing high-fashion commercial storyboards and a monochrome modular interface system that strips away corporate SaaS cliches.',
+        colors: ['#121316', '#065F46', '#D1FAE5', '#1F2937', '#047857', '#E5E7EB']
+      },
+      {
+        num: '06',
+        name: 'Cight Synth',
+        year: '2025',
+        role: 'Industrial Graphic & Interface Designer',
+        services: 'Hardware Schematics, Manual, Rotary UI',
+        client: 'Cight Acoustic Instruments',
+        freq: 440.00,
+        lead: 'Brushed aluminum faceplate graphics, laser-etched signal flow diagrams, and a 240-page technical manual for an analog percussion synthesizer.',
+        colors: ['#1C1917', '#D97706', '#F5F5F4', '#44403C', '#B45309', '#E7E5E4']
+      },
+      {
+        num: '07',
+        name: 'Cobalt Pavilion',
+        year: '2025',
+        role: 'Exhibition & Print Designer',
+        services: 'Silkscreen Posters, Wayfinding, Catalogue',
+        client: 'Patan Contemporary Space',
+        freq: 493.88,
+        lead: 'Pure ultramarine spot-ink silkscreen posters and spatial typography engineered on a strict 12-column architectural grid.',
+        colors: ['#172554', '#1D4ED8', '#DBEAFE', '#1E40AF', '#93C5FD', '#0F172A']
+      },
+      {
+        num: '08',
+        name: 'Sierra Atelier',
+        year: '2025',
+        role: 'Art Direction & Digital Lookbook',
+        services: 'Editorial Spreads, Web Typography, Packaging',
+        client: 'Maison Sierra',
+        freq: 523.25,
+        lead: 'Tactile garment lookbook and woven label typography where photographic plates rest like quiet notes across unbleached cotton paper.',
+        colors: ['#292524', '#7C2D12', '#EDE9E0', '#57534E', '#9A3412', '#D6D3D1']
+      },
+      {
+        num: '09',
+        name: 'Playground',
+        year: '2025–2026',
+        role: 'Principal Graphic Designer',
+        services: 'Daily Posters, Type Specimens, Motion Studies',
+        client: 'Self-Initiated Studio Archive',
+        freq: 587.33,
+        lead: 'An ongoing laboratory of experimental poster compositions, custom glyph studies, and kinetic scores.',
+        colors: ['#0E0E0E', '#374151', '#E5E3DC', '#1F2937', '#52525B', '#D4D2C9']
+      }
+    ];
+
+    /* --------------------------------------------------------------------------
+       2. BESPOKE HIGH-TASTE GRAPHIC DESIGN PLATES (10 PER PROJECT)
+       Creates authentic Swiss posters, vinyl sleeves, editorial spreads,
+       architectural grids, and typographic specimens (Zero generic placeholders)
+       -------------------------------------------------------------------------- */
+    function renderDesignPlateSVG(proj, plateIndex) {
+      const cDark = proj.colors[0];
+      const cAccent = proj.colors[1];
+      const cPaper = proj.colors[2];
+      const cMid = proj.colors[3];
+      const type = plateIndex % 5;
+
+      if (type === 0) {
+        // Swiss Brutalist Exhibition Poster
+        return `<svg viewBox="0 0 320 440" xmlns="http://www.w3.org/2000/svg">
+          <rect width="320" height="440" fill="${cDark}"/>
+          <g stroke="${cPaper}" stroke-width="0.75" opacity="0.28">
+            <line x1="24" y1="0" x2="24" y2="440"/><line x1="160" y1="0" x2="160" y2="440"/><line x1="296" y1="0" x2="296" y2="440"/>
+            <line x1="0" y1="72" x2="320" y2="72"/><line x1="0" y1="280" x2="320" y2="280"/><line x1="0" y1="396" x2="320" y2="396"/>
+          </g>
+          <circle cx="160" cy="176" r="78" fill="${cAccent}"/>
+          <circle cx="188" cy="176" r="52" fill="${cDark}"/>
+          <text x="24" y="52" fill="${cPaper}" font-family="IBM Plex Mono, monospace" font-size="9" letter-spacing="1">${proj.num} // ARCHIVE EDITION ${proj.year}</text>
+          <text x="22" y="346" fill="${cPaper}" font-family="Instrument Serif, Georgia, serif" font-size="68" letter-spacing="-2">${proj.name.toUpperCase().slice(0, 8)}</text>
+          <text x="24" y="420" fill="${cPaper}" font-family="IBM Plex Mono, monospace" font-size="8" opacity="0.65">SWISS GRID SPECIMEN — PLATE 0${plateIndex + 1}</text>
+        </svg>`;
+      } else if (type === 1) {
+        // Editorial Monograph Spread (2-Page Open Layout)
+        return `<svg viewBox="0 0 460 310" xmlns="http://www.w3.org/2000/svg">
+          <rect width="460" height="310" fill="${cPaper}"/>
+          <line x1="230" y1="0" x2="230" y2="310" stroke="#0E0E0E" stroke-width="1" opacity="0.25"/>
+          <rect x="28" y="28" width="174" height="210" fill="${cDark}"/>
+          <circle cx="115" cy="133" r="46" fill="none" stroke="${cPaper}" stroke-width="1.2"/>
+          <text x="28" y="266" fill="#0E0E0E" font-family="Instrument Serif, serif" font-size="28" font-style="italic">${proj.name}</text>
+          <rect x="258" y="28" width="174" height="12" fill="#0E0E0E"/>
+          <rect x="258" y="54" width="110" height="4" fill="${cAccent}"/>
+          <g fill="#0E0E0E" opacity="0.55">
+            <rect x="258" y="78" width="80" height="3"/><rect x="258" y="88" width="76" height="3"/><rect x="258" y="98" width="82" height="3"/><rect x="258" y="108" width="68" height="3"/>
+            <rect x="352" y="78" width="80" height="3"/><rect x="352" y="88" width="72" height="3"/><rect x="352" y="98" width="78" height="3"/>
+          </g>
+          <rect x="258" y="140" width="174" height="136" fill="${cMid}"/>
+          <path d="M258,276 L432,140" stroke="${cPaper}" stroke-width="1"/>
+        </svg>`;
+      } else if (type === 2) {
+        // Vinyl Gatefold / Acoustic Waveform Sleeve
+        return `<svg viewBox="0 0 360 360" xmlns="http://www.w3.org/2000/svg">
+          <rect width="360" height="360" fill="${cMid}"/>
+          <rect x="22" y="22" width="316" height="316" fill="none" stroke="${cPaper}" stroke-width="1"/>
+          <circle cx="180" cy="180" r="118" fill="${cDark}"/>
+          <circle cx="180" cy="180" r="92" fill="none" stroke="${cPaper}" stroke-width="0.5" opacity="0.35"/>
+          <circle cx="180" cy="180" r="68" fill="none" stroke="${cPaper}" stroke-width="0.5" opacity="0.35"/>
+          <circle cx="180" cy="180" r="38" fill="${cAccent}"/>
+          <circle cx="180" cy="180" r="6" fill="${cPaper}"/>
+          <text x="34" y="44" fill="${cPaper}" font-family="IBM Plex Mono, monospace" font-size="9">STEREO // 33 RPM — ¥U5H</text>
+          <text x="34" y="324" fill="${cPaper}" font-family="Instrument Serif, serif" font-size="36">${proj.name.toUpperCase()}</text>
+        </svg>`;
+      } else if (type === 3) {
+        // High-Contrast Typographic Contact Sheet
+        return `<svg viewBox="0 0 420 280" xmlns="http://www.w3.org/2000/svg">
+          <rect width="420" height="280" fill="#0E0E0E"/>
+          <text x="18" y="128" fill="${cPaper}" font-family="Instrument Serif, serif" font-size="148" letter-spacing="-6">Aa</text>
+          <text x="210" y="64" fill="${cAccent}" font-family="IBM Plex Mono, monospace" font-size="10">GLYPH PROPORTION STUDY</text>
+          <line x1="210" y1="80" x2="396" y2="80" stroke="${cPaper}" stroke-width="0.75" opacity="0.4"/>
+          <rect x="210" y="98" width="186" height="148" fill="${cAccent}"/>
+          <circle cx="303" cy="172" r="48" fill="#0E0E0E"/>
+          <text x="22" y="256" fill="${cPaper}" font-family="IBM Plex Mono, monospace" font-size="9" opacity="0.7">FIG 0${plateIndex + 1} — ${proj.client.toUpperCase()}</text>
+        </svg>`;
+      } else {
+        // Architectural Chiaroscuro Monolith Study
+        return `<svg viewBox="0 0 300 400" xmlns="http://www.w3.org/2000/svg">
+          <rect width="300" height="400" fill="${cPaper}"/>
+          <rect x="28" y="28" width="244" height="280" fill="${cDark}"/>
+          <polygon points="150,58 238,278 62,278" fill="${cAccent}" opacity="0.88"/>
+          <line x1="28" y1="168" x2="272" y2="168" stroke="${cPaper}" stroke-width="1"/>
+          <text x="28" y="346" fill="#0E0E0E" font-family="Instrument Serif, serif" font-size="44">${proj.name}</text>
+          <text x="28" y="372" fill="#0E0E0E" font-family="IBM Plex Mono, monospace" font-size="9" opacity="0.6">${proj.services.toUpperCase()}</text>
+        </svg>`;
+      }
+    }
+
+    /* --------------------------------------------------------------------------
+       3. OPENING BLACK LOADER ("LOADING THE PLAYLIST" 3X + 40 WHITE EQ BARS)
+       -------------------------------------------------------------------------- */
+    const PLAYLIST_STANZA = [
+      "Loading the playlist",
+      "it might take some time",
+      "finding the right tune",
+      "Be ready to hit play",
+      "Enjoy the experience"
+    ];
+
+    function initOpeningLoader() {
+      const eqMount = document.getElementById('eq-bars');
+      const bars = [];
+      for (let i = 0; i < 40; i++) {
+        const bar = document.createElement('div');
+        bar.className = 'eq-bar';
+        eqMount.appendChild(bar);
+        bars.push(bar);
+      }
+
+      const stanzas = document.querySelectorAll('.loader-stanza');
+      const pctNode = document.getElementById('loader-pct');
+
+      // Counter 0% -> 100%
+      const counter = { v: 0 };
+      gsap.to(counter, {
+        v: 100,
+        duration: 3.1,
+        ease: 'none',
+        onUpdate: () => {
+          pctNode.textContent = `${Math.round(counter.v)}%`;
+        }
+      });
+
+      // Type out the 5 lines across the 3 stacked stanzas
+      stanzas.forEach((stanzaEl, sIdx) => {
+        const lineNodes = stanzaEl.querySelectorAll('.loader-line');
+        PLAYLIST_STANZA.forEach((lineText, lIdx) => {
+          const startDelay = (sIdx * 0.48) + (lIdx * 0.28);
+          setTimeout(() => {
+            typeLineLetterByLetter(lineNodes[lIdx], lineText, 16);
+          }, startDelay * 1000);
+        });
+      });
+
+      // Rise uneven white equalizer bars from the bottom to wipe the loader
+      setTimeout(() => {
+        bars.forEach((bar) => {
+          const midPeak = 35 + Math.random() * 55;
+          gsap.timeline()
+            .to(bar, {
+              height: `${midPeak}%`,
+              duration: 0.38,
+              ease: 'power2.out',
+              delay: Math.random() * 0.22
+            })
+            .to(bar, {
+              height: '100%',
+              duration: 0.48,
+              ease: 'power3.inOut'
+            });
+        });
+
+        setTimeout(() => {
+          gsap.to('#loader', {
+            opacity: 0,
+            duration: 0.35,
+            onComplete: () => {
+              document.getElementById('loader').style.display = 'none';
+            }
+          });
+        }, 950);
+      }, 3150);
+    }
+
+    function typeLineLetterByLetter(node, str, speed) {
+      let c = 0;
+      const iv = setInterval(() => {
+        c++;
+        node.textContent = str.slice(0, c);
+        if (c >= str.length) clearInterval(iv);
+      }, speed);
+    }
+
+    /* --------------------------------------------------------------------------
+       4. BUILD (01) NOTES SCORE & (02) MELODY MULTITRACK ROWS
+       -------------------------------------------------------------------------- */
+    // Layouts for the 10 plates per project:
+    // On the staff line: tightly packed linear sequence along y=0 (the 4th/middle staff line)
+    // At the playhead: scattered into an unaligned organic chord pile across upper & lower staff lines
+    const CHORD_SCATTER_MAP = [
+      { w: 185, h: 250, sx: -290, sy: -155, z: 28 },
+      { w: 230, h: 155, sx: -145, sy: 145,  z: 35 },
+      { w: 170, h: 170, sx: -35,  sy: -185, z: 29 },
+      { w: 245, h: 165, sx: 115,  sy: -135, z: 36 },
+      { w: 175, h: 235, sx: 255,  sy: 115,  z: 30 },
+      { w: 210, h: 140, sx: -220, sy: 35,   z: 34 },
+      { w: 160, h: 215, sx: 25,   sy: 165,  z: 33 },
+      { w: 195, h: 195, sx: 210,  sy: -45,  z: 27 },
+      { w: 225, h: 150, sx: -75,  sy: -30,  z: 31 },
+      { w: 165, h: 220, sx: 85,   sy: 45,   z: 37 }
+    ];
+
+    const PROJECT_STRIDE = 780; // Horizontal distance between project centers on the score
+    const LOOP_SPAN = PROJECTS.length * PROJECT_STRIDE;
+    const scoreGroups = [];
+
+    function buildScoreAndMelody() {
+      const scoreMount = document.getElementById('score-projects-mount');
+      const stripMount = document.getElementById('bottom-proj-strip');
+      const melodyMount = document.getElementById('melody-tracks-mount');
+
+      PROJECTS.forEach((proj, pIdx) => {
+        const groupEl = document.createElement('div');
+        groupEl.className = 'score-project-group';
+
+        const plates = [];
+        CHORD_SCATTER_MAP.forEach((spec, k) => {
+          const plateEl = document.createElement('div');
+          plateEl.className = 'score-plate';
+          plateEl.style.width = `${spec.w}px`;
+          plateEl.style.height = `${spec.h}px`;
+          plateEl.style.zIndex = spec.z;
+          plateEl.innerHTML = renderDesignPlateSVG(proj, k);
+
+          plateEl.addEventListener('mouseenter', () => {
+            playSingleNote(proj.freq * (1 + (k % 5) * 0.125), 0.16);
+          });
+          plateEl.addEventListener('click', () => {
+            openCaseSheet(pIdx);
+          });
+
+          groupEl.appendChild(plateEl);
+
+          // Linear resting position right along the middle (4th) staff line:
+          // Compressed to ~52px height (scale ~0.26) in a neat horizontal string
+          const lineStepX = (k - 4.5) * 68;
+          plates.push({
+            el: plateEl,
+            lineX: lineStepX,
+            lineY: 0,
+            lineScale: 0.27,
+            pileX: spec.sx,
+            pileY: spec.sy,
+            pileScale: 1.0
+          });
+        });
+
+        scoreMount.appendChild(groupEl);
+        scoreGroups.push({
+          proj,
+          index: pIdx,
+          el: groupEl,
+          plates,
+          wasStruck: false
+        });
+
+        // Bottom project strip item
+        const link = document.createElement('button');
+        link.className = 'strip-proj-link' + (pIdx === 0 ? ' current' : '');
+        link.textContent = proj.name;
+        link.onclick = () => glideToProject(pIdx);
+        stripMount.appendChild(link);
+
+        // (02) Melody Multitrack Row (first 8 rows fill the 8 staff tracks)
+        if (pIdx < 8) {
+          const trackRow = document.createElement('div');
+          trackRow.className = 'melody-track-row';
+          trackRow.onclick = () => openCaseSheet(pIdx);
+          trackRow.onmouseenter = () => playSingleNote(proj.freq, 0.2);
+
+          let thumbsHTML = '';
+          for (let t = 0; t < 12; t++) {
+            const w = t % 2 === 0 ? 64 : 46;
+            thumbsHTML += `<div class="melody-thumb" style="width:${w}px;">${renderDesignPlateSVG(proj, t)}</div>`;
+          }
+
+          trackRow.innerHTML = `
+            <div class="melody-track-name">${proj.name}</div>
+            <div class="melody-notes-ribbon" data-ribbon="${pIdx}">${thumbsHTML}</div>
+            <div class="melody-track-num">(${proj.num})</div>
+          `;
+          melodyMount.appendChild(trackRow);
+        }
+      });
+    }
+
+    /* --------------------------------------------------------------------------
+       5. 60FPS CONTINUOUS LOOPING SCORE & CHORD-STRIKE INTERPOLATION
+       -------------------------------------------------------------------------- */
+    let targetScoreX = 0;
+    let currentScoreX = 0;
+    let activeIdx = 0;
+    let pointerDown = false;
+    let lastPointerX = 0;
+
+    window.addEventListener('wheel', (e) => {
+      if (document.getElementById('case-sheet').classList.contains('open')) return;
+      if (document.getElementById('menu-screen').classList.contains('open')) return;
+
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (document.getElementById('view-notes').classList.contains('active')) {
+        targetScoreX += delta * 0.92;
+      } else if (document.getElementById('view-melody').classList.contains('active')) {
+        scrubMelodyRibbons(delta * 0.5);
+      }
+    }, { passive: true });
+
+    const scoreCanvas = document.getElementById('score-canvas');
+    scoreCanvas.addEventListener('pointerdown', (e) => {
+      pointerDown = true;
+      lastPointerX = e.clientX;
+    });
+    window.addEventListener('pointermove', (e) => {
+      if (pointerDown && document.getElementById('view-notes').classList.contains('active')) {
+        const dx = lastPointerX - e.clientX;
+        targetScoreX += dx * 1.35;
+        lastPointerX = e.clientX;
+      }
+      // In (02) Melody view, move the vertical playhead across all 8 tracks with cursor
+      if (document.getElementById('view-melody').classList.contains('active')) {
+        const mp = document.getElementById('melody-playhead');
+        mp.style.left = `${e.clientX - 38}px`;
+      }
+    });
+    window.addEventListener('pointerup', () => { pointerDown = false; });
+
+    let melodyOffset = 0;
+    function scrubMelodyRibbons(delta) {
+      melodyOffset = Math.max(-240, Math.min(240, melodyOffset - delta));
+      document.querySelectorAll('.melody-notes-ribbon').forEach((rib, idx) => {
+        const dir = idx % 2 === 0 ? 1 : -0.7;
+        rib.style.transform = `translate3d(${melodyOffset * dir}px, 0, 0)`;
+      });
+    }
+
+    function glideToProject(idx) {
+      // Find shortest modular distance on the infinite loop
+      const currentMod = ((targetScoreX % LOOP_SPAN) + LOOP_SPAN) % LOOP_SPAN;
+      const desiredMod = idx * PROJECT_STRIDE;
+      let diff = desiredMod - currentMod;
+      if (diff > LOOP_SPAN / 2) diff -= LOOP_SPAN;
+      if (diff < -LOOP_SPAN / 2) diff += LOOP_SPAN;
+      targetScoreX += diff;
+    }
+
+    function tickScorePhysics() {
+      currentScoreX += (targetScoreX - currentScoreX) * 0.085;
+      const stageWidth = window.innerWidth - 76; // minus two 38px sidebars
+      const centerPlayheadX = stageWidth / 2;
+
+      let nearestIdx = 0;
+      let minDist = Infinity;
+
+      scoreGroups.forEach((group, idx) => {
+        const rawX = idx * PROJECT_STRIDE - currentScoreX;
+        // Seamless modulo wrapping across the 9 projects
+        const wrappedX = ((rawX + LOOP_SPAN / 2) % LOOP_SPAN + LOOP_SPAN) % LOOP_SPAN - LOOP_SPAN / 2;
+
+        const screenX = centerPlayheadX + wrappedX;
+        group.el.style.transform = `translate3d(${screenX}px, 0px, 0px)`;
+
+        const dist = Math.abs(wrappedX);
+        if (dist < minDist) {
+          minDist = dist;
+          nearestIdx = idx;
+        }
+
+        // Chord Strike Envelope:
+        // When dist > 310px, plates sit compressed in a tight horizontal row right on the middle staff line.
+        // As dist approaches 0 (the playhead), plates jump off the line into an overlapping chord pile.
+        const radius = 310;
+        const t = Math.max(0, 1 - dist / radius);
+        // Smooth quintic bell curve
+        const excite = t * t * t * (t * (t * 6 - 15) + 10);
+
+        if (excite > 0.82 && !group.wasStruck) {
+          group.wasStruck = true;
+          playChord([group.proj.freq, group.proj.freq * 1.25, group.proj.freq * 1.5]);
+        } else if (excite < 0.3) {
+          group.wasStruck = false;
+        }
+
+        group.plates.forEach((p) => {
+          const x = p.lineX + (p.pileX - p.lineX) * excite;
+          const y = p.lineY + (p.pileY - p.lineY) * excite;
+          const sc = p.lineScale + (p.pileScale - p.lineScale) * excite;
+          p.el.style.transform = `translate3d(calc(-50% + ${x}px), calc(-50% + ${y}px), 0) scale(${sc})`;
+        });
+      });
+
+      if (nearestIdx !== activeIdx) {
+        activeIdx = nearestIdx;
+        syncActiveProjectUI(activeIdx);
+      }
+
+      requestAnimationFrame(tickScorePhysics);
+    }
+
+    function syncActiveProjectUI(idx) {
+      const p = PROJECTS[idx];
+      document.getElementById('active-serif-title').textContent = p.name;
+      document.getElementById('bottom-active-num').textContent = p.num;
+      document.getElementById('bottom-active-name').textContent = p.name;
+
+      const links = document.querySelectorAll('.strip-proj-link');
+      links.forEach((l, i) => l.classList.toggle('current', i === idx));
+    }
+
+    /* --------------------------------------------------------------------------
+       6. WEB AUDIO SYNTHESIS (SOUND: ON / OFF)
+       -------------------------------------------------------------------------- */
+    let soundOn = false;
+    let audioCtx = null;
+
+    function ensureAudio() {
+      if (!audioCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AC();
+      }
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playSingleNote(freq = 440, dur = 0.24) {
+      if (!soundOn) return;
+      ensureAudio();
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now);
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(0.08, now + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + dur + 0.02);
+    }
+
+    function playChord(freqs) {
+      if (!soundOn) return;
+      freqs.forEach((f, i) => {
+        setTimeout(() => playSingleNote(f, 0.38), i * 55);
+      });
+    }
+
+    /* --------------------------------------------------------------------------
+       7. RIGHT SIDEBAR CONTROLS (MENU, SOUND, ANNOTATIONS) & CASE STUDY SHEET
+       -------------------------------------------------------------------------- */
+    const menuScreen = document.getElementById('menu-screen');
+    const menuBtn = document.getElementById('menu-btn');
+
+    menuBtn.addEventListener('click', () => {
+      const open = menuScreen.classList.toggle('open');
+      menuBtn.textContent = open ? 'Close' : 'Menu';
+      playSingleNote(open ? 523.25 : 392.00, 0.15);
+    });
+
+    document.getElementById('sound-switch').addEventListener('click', () => {
+      soundOn = !soundOn;
+      document.getElementById('snd-on').classList.toggle('on', soundOn);
+      document.getElementById('snd-off').classList.toggle('on', !soundOn);
+      if (soundOn) playChord([261.63, 329.63, 392.00]);
+    });
+
+    document.getElementById('annot-switch').addEventListener('click', () => {
+      const hidden = document.body.classList.toggle('annotations-hidden');
+      document.getElementById('ann-on').classList.toggle('on', !hidden);
+      document.getElementById('ann-off').classList.toggle('on', hidden);
+      playSingleNote(440, 0.12);
+    });
+
+    function openView(viewName) {
+      closeCaseSheet();
+      menuScreen.classList.remove('open');
+      menuBtn.textContent = 'Menu';
+
+      ['notes', 'melody', 'overture', 'jazz'].forEach((v) => {
+        document.getElementById(`view-${v}`).classList.toggle('active', v === viewName);
+      });
+
+      document.getElementById('central-playhead').style.opacity = (viewName === 'notes') ? '1' : '0';
+    }
+
+    function selectMenuDestination(viewName) {
+      openView(viewName);
+    }
+
+    document.getElementById('view-project-trigger').addEventListener('click', () => {
+      openCaseSheet(activeIdx);
+    });
+
+    function openCaseSheet(idx) {
+      const p = PROJECTS[idx];
+      document.getElementById('case-crumb').textContent = `(${p.num}) / (09) — ${p.name}`;
+      document.getElementById('case-title').textContent = p.name;
+      document.getElementById('case-year').textContent = p.year;
+      document.getElementById('case-role').textContent = p.role;
+      document.getElementById('case-services').textContent = p.services;
+      document.getElementById('case-client').textContent = p.client;
+      document.getElementById('case-lead').textContent = p.lead;
+
+      const mount = document.getElementById('case-plates-mount');
+      mount.innerHTML = '';
+      for (let i = 0; i < 6; i++) {
+        const fig = document.createElement('div');
+        fig.className = 'case-figure';
+        fig.innerHTML = `
+          <div style="color: var(--muted);">(0${i + 1}) Plate</div>
+          <div class="case-figure-plate">${renderDesignPlateSVG(p, i)}</div>
+        `;
+        mount.appendChild(fig);
+      }
+
+      const sheet = document.getElementById('case-sheet');
+      sheet.scrollTop = 0;
+      sheet.classList.add('open');
+      playChord([p.freq, p.freq * 1.25, p.freq * 1.5]);
+    }
+
+    function closeCaseSheet() {
+      document.getElementById('case-sheet').classList.remove('open');
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeCaseSheet();
+        menuScreen.classList.remove('open');
+        menuBtn.textContent = 'Menu';
+      }
+    });
+
+    function copyContactEmail(btn) {
+      const temp = document.createElement('textarea');
+      temp.value = 'hello@yu5h.studio';
+      document.body.appendChild(temp);
+      temp.select();
+      document.execCommand('copy');
+      document.body.removeChild(temp);
+
+      const prev = btn.textContent;
+      btn.textContent = 'hello@yu5h.studio (Copied)';
+      setTimeout(() => { btn.textContent = prev; }, 2000);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      buildScoreAndMelody();
+      initOpeningLoader();
+      requestAnimationFrame(tickScorePhysics);
+    });
+  </script>
+</body>
+</html>
